@@ -5,6 +5,7 @@
    alert colours: danger #ff4d4f  warn #ffb020  cyan #35bdf8  green #46d17a */
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* keep the hidden attribute authoritative */
 :root {
 	--obsidian:#0b0d12; --panel:#131722; --line:#232a3a;
 	--gold:#e8b64c; --anima:#35d6c4; --ink:#e8edf6; --muted:#8792a6;
@@ -137,6 +138,17 @@ body.firing .alert-word { animation:pop .35s ease-out; }
 }
 .log .empty { color:var(--muted); font-family:system-ui; font-style:italic; padding:8px 2px; }
 
+/* ---------- diagnostics ---------- */
+.debug {
+	margin:0 12px 10px; padding:6px 8px; border-radius:6px;
+	background:#0e1219; border:1px solid var(--line);
+	font-family:var(--mono); font-size:10.5px; line-height:1.4;
+	color:var(--muted); word-break:break-word;
+}
+.debug b { color:var(--anima); font-weight:600; }
+.debug .bad { color:var(--danger); }
+.debug .good { color:var(--green); }
+
 /* ---------- settings panel ---------- */
 .panel {
 	position:absolute; inset:0; background:var(--obsidian);
@@ -164,6 +176,7 @@ input[type="checkbox"] { width:17px; height:17px; accent-color:var(--gold); }
 	margin:14px 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);
 }
 .hint { color:var(--muted); font-size:11.5px; margin:2px 0 8px; line-height:1.4; }
+.muted-tag { text-transform:none; letter-spacing:0; color:var(--anima); font-size:11px; }
 .hint code { background:#0e1219; padding:1px 5px; border-radius:4px; color:var(--anima); font-family:var(--mono); }
 .hint.foot { margin-top:14px; border-top:1px solid #161b26; padding-top:10px; }
 #trigEditor {
