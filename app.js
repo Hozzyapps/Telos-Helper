@@ -33,7 +33,7 @@ var DEFAULT_TRIGGERS = [
 ];
 
 var DEFAULT_SETTINGS = {
-	overlay: true, voice: true, beep: true,
+	overlay: true, voice: true, beep: true, debug: true,
 	volume: 1, voiceName: "", overlaySecs: 2.5, cooldown: 1500
 };
 
@@ -43,6 +43,7 @@ var triggers = loadJSON("telos_alert_triggers_v1", DEFAULT_TRIGGERS);
 var reader = ChatBoxReader ? new ChatBoxReader() : null;
 var primed = false;                // skip lines already in chat when the app starts
 var nullReads = 0, tickCount = 0;  // loop bookkeeping
+var lastRaw = "";                  // last raw chat line read (for diagnostics)
 var lastFire = {};                 // trigger id -> timestamp (cooldown)
 var $ = function (id) { return document.getElementById(id); };
 
@@ -181,31 +182,55 @@ function matchLine(rawText) {
 }
 
 function readTick() {
-	if (!ensureAlt1()) { setStatus("Open in the Alt1 browser to add this app", "err"); return; }
-	if (!alt1.permissionPixel) { setStatus("Click Alt1\u2019s \u201Cadd app\u201D bar at the top to finish", "warn"); return; }
-	if (!reader) { setStatus("Chat library failed to load", "err"); return; }
+	if (!ensureAlt1()) { setStatus("Open in the Alt1 browser to add this app", "err"); updateDebug(); return; }
+	if (!alt1.permissionPixel) { setStatus("Enable \u201CView screen\u201D permission for this app", "warn"); updateDebug(); return; }
+	if (!reader) { setStatus("Chat library failed to load", "err"); updateDebug(); return; }
 	try {
-		// periodically drop the box position so we re-locate a chat that was moved/resized
-		if (reader.pos && (++tickCount % 40 === 0)) reader.pos = null;
-
 		if (!reader.pos) {
 			reader.find();
-			if (!reader.pos) { setStatus("Looking for your chatbox\u2026", "warn"); return; }
-			setStatus("Watching chat \u2014 good hunting", "ok");
+			if (!reader.pos) { setStatus("Looking for your chatbox\u2026", "warn"); updateDebug(); return; }
 		}
-
 		var lines = reader.read();
-		if (lines === null) {                    // box found but font/text not locked yet
-			if (++nullReads > 8) { reader.pos = null; nullReads = 0; }
+		if (lines === null) {
+			// box located, but not enough text yet to lock the font — keep the box and wait.
+			// only after a long dry spell do we re-find, in case we locked onto the wrong box.
+			setStatus("Chatbox found \u2014 waiting for text\u2026", "warn");
+			if (++nullReads > 20) { reader.pos = null; reader.font = null; nullReads = 0; }
+			updateDebug();
 			return;
 		}
 		nullReads = 0;
-		if (!primed) { primed = true; return; }  // ignore whatever was already on screen at launch
+		if (lines.length) lastRaw = lines[lines.length - 1].text;
+		setStatus("Watching chat \u2014 good hunting", "ok");
+		if (!primed) { primed = true; updateDebug(); return; } // ignore lines already on screen at launch
 		for (var i = 0; i < lines.length; i++) matchLine(lines[i].text);
 	} catch (e) {
 		reader.pos = null;                       // recover on next tick
 		setStatus("Re-syncing chatbox\u2026", "warn");
 	}
+	updateDebug();
+}
+
+function escapeHtml(s) {
+	return String(s).replace(/[&<>"]/g, function (c) {
+		return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+	});
+}
+function updateDebug() {
+	var el = $("debug");
+	if (!el) return;
+	if (settings.debug === false) { el.hidden = true; return; }
+	el.hidden = false;
+	var a = !!window.alt1;
+	var pix = a && !!alt1.permissionPixel;
+	var pos = !!(reader && reader.pos);
+	var n = pos && reader.pos.boxes ? reader.pos.boxes.length : (pos ? 1 : 0);
+	var font = !!(reader && reader.font);
+	function m(v) { return v ? '<b class="good">Y</b>' : '<b class="bad">N</b>'; }
+	el.innerHTML =
+		"alt1:" + m(a) + " view:" + m(pix) + " box:" + m(pos) +
+		" n:<b>" + n + "</b> font:" + m(font) +
+		"<br>last: " + (lastRaw ? escapeHtml('"' + lastRaw.slice(0, 64) + '"') : "\u2014");
 }
 
 /* =====================================================================
@@ -237,6 +262,7 @@ function initUI() {
 	bindCheck("setOverlay", "overlay");
 	bindCheck("setVoice", "voice", syncMute);
 	bindCheck("setBeep", "beep");
+	bindCheck("setDebug", "debug", updateDebug);
 	bindNum("setOverlaySecs", "overlaySecs");
 	bindNum("setCooldown", "cooldown");
 	var vol = $("setVolume"); vol.value = settings.volume;
