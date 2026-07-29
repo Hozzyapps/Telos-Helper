@@ -45,6 +45,10 @@ var primed = false;                // skip lines already in chat when the app st
 var nullReads = 0, tickCount = 0;  // loop bookkeeping
 var lastRaw = "";                  // last raw chat line read (for diagnostics)
 var lastFire = {};                 // trigger id -> timestamp (cooldown)
+/* manual chatbox targeting (used when auto-detect can't find the chat) */
+var manualBox = loadJSON("telos_manual_box_v1", null); // {x,y,width,height,line0y} or null
+var targeting = 0;                 // 0 = off, 1 = awaiting 1st corner, 2 = awaiting 2nd corner
+var targetCorner1 = null;
 var $ = function (id) { return document.getElementById(id); };
 
 /* ---------- helpers ---------- */
@@ -166,8 +170,101 @@ function hexToRgb(hex) {
 }
 
 /* =====================================================================
-   CHATBOX READING LOOP
+   MANUAL CHATBOX TARGETING
+   Auto-detect finds the chat by its + / - button and speech-bubble graphics.
+   When those don't match (custom themes, client updates), the user can point
+   at the chat with Alt+1 instead. read() still auto-detects the font inside
+   the box we hand it, so this works regardless of the surrounding graphics.
    ===================================================================== */
+function makeChatbox(b) {
+	return {
+		rect: { x: b.x, y: b.y, width: b.width, height: b.height },
+		timestamp: true, type: "main", leftfound: true,
+		topright: { x: b.x + b.width, y: b.y, type: "full" },
+		botleft: { x: b.x, y: b.y + b.height },
+		line0x: 0, line0y: b.line0y
+	};
+}
+function applyManualBox() {
+	if (!manualBox || !reader) return;
+	var box = makeChatbox(manualBox);
+	reader.pos = { mainbox: box, boxes: [box] };
+}
+
+/* Sweep the baseline (line0y) to find the offset that reads the most text —
+   makes the feature forgiving of imprecise pointing. */
+function calibrate(img, rect) {
+	var best = { score: -1, line0y: rect.height - 4 };
+	var lo = Math.max(rect.height - 40, 8);
+	for (var oy = rect.height - 1; oy >= lo; oy--) {
+		var box = makeChatbox({ x: rect.x, y: rect.y, width: rect.width, height: rect.height, line0y: oy });
+		reader.pos = { mainbox: box, boxes: [box] };
+		reader.font = null; reader.overlaplines = []; reader.lastReadBuffer = null;
+		var score = 0, lines = null;
+		try { lines = reader.read(img); } catch (e) {}
+		if (lines) for (var i = 0; i < lines.length; i++) {
+			var m = lines[i].text.match(/[a-z0-9]/gi); if (m) score += m.length;
+		}
+		if (score > best.score) best = { score: score, line0y: oy };
+	}
+	return best;
+}
+
+function startTargeting() {
+	if (!window.alt1) { setStatus("Open in Alt1 to set the chatbox", "err"); return; }
+	targeting = 1; targetCorner1 = null;
+	manualInfo('Hover the <b>TOP-LEFT</b> of your chat text and press <b>Alt+1</b>.');
+	setStatus("Targeting: top-left corner\u2026", "warn");
+}
+function cancelTargeting() { targeting = 0; targetCorner1 = null; manualInfo(""); }
+function clearManualBox() {
+	manualBox = null; targeting = 0;
+	try { localStorage.removeItem("telos_manual_box_v1"); } catch (e) {}
+	if (reader) { reader.pos = null; reader.font = null; }
+	primed = false;
+	manualInfo("Back to auto-detect.");
+	updateManualUI();
+}
+
+function onAlt1Pressed() {
+	if (!targeting) return;
+	var p = a1lib.getMousePosition && a1lib.getMousePosition();
+	if (!p) { manualInfo("Couldn\u2019t read the cursor \u2014 make sure RuneScape is focused, then try again."); return; }
+	if (targeting === 1) {
+		targetCorner1 = p; targeting = 2;
+		manualInfo('Got top-left. Now hover the <b>BOTTOM-RIGHT</b> of your chat and press <b>Alt+1</b>.');
+		setStatus("Targeting: bottom-right corner\u2026", "warn");
+		return;
+	}
+	// second corner -> build rect, calibrate, save
+	var x = Math.min(targetCorner1.x, p.x), y = Math.min(targetCorner1.y, p.y);
+	var w = Math.abs(p.x - targetCorner1.x), h = Math.abs(p.y - targetCorner1.y);
+	targeting = 0;
+	if (w < 40 || h < 20) { manualInfo("That box was too small \u2014 try again, corner to corner across the chat."); return; }
+	var rect = { x: x, y: y, width: w, height: h };
+	manualInfo("Calibrating\u2026");
+	try {
+		var img = a1lib.captureHoldFullRs();
+		var best = calibrate(img, rect);
+		manualBox = { x: x, y: y, width: w, height: h, line0y: best.line0y };
+		saveJSON("telos_manual_box_v1", manualBox);
+		reader.font = null; reader.overlaplines = []; reader.lastReadBuffer = null;
+		primed = false; applyManualBox();
+		manualInfo(best.score > 8
+			? "Chat area set. Reading from your box now."
+			: "Box saved, but I couldn\u2019t read much text \u2014 re-point tightly around the message lines if it doesn\u2019t catch specials.");
+	} catch (e) { manualInfo("Capture failed \u2014 try again."); }
+	updateManualUI();
+}
+
+function manualInfo(html) { var el = $("manualInfo"); if (el) el.innerHTML = html; }
+function updateManualUI() {
+	var on = !!manualBox;
+	var s = $("manualState"); if (s) s.textContent = on ? "Manual box active" : "Auto-detect";
+	var c = $("clearManualBtn"); if (c) c.hidden = !on;
+}
+
+
 function matchLine(rawText) {
 	var text = norm(stripTimestamp(rawText));
 	if (!text) return;
@@ -186,36 +283,38 @@ function readTick() {
 	if (!alt1.permissionPixel) { setStatus("Enable \u201CView screen\u201D permission for this app", "warn"); updateDebug(); return; }
 	if (!reader) { setStatus("Chat library failed to load", "err"); updateDebug(); return; }
 	if (alt1.rsLinked === false) { setStatus("Waiting for RuneScape\u2026", "warn"); updateDebug(); return; }
+	if (targeting) { setStatus("Point at your chat, press Alt+1", "warn"); updateDebug(); return; }
 
 	// Capture the game screen ONCE and hand the same image to find() and read().
-	// (Letting the library auto-capture internally fails to locate the box on some setups.)
 	var img;
 	try { img = a1lib.captureHoldFullRs(); }
 	catch (e) { setStatus("Couldn\u2019t capture the game screen", "warn"); updateDebug(); return; }
 	if (!img) { setStatus("Couldn\u2019t capture the game screen", "warn"); updateDebug(); return; }
 
 	try {
-		if (!reader.pos) {
+		if (manualBox) {
+			// MANUAL mode: use the box the user pointed at (auto-detect not needed)
+			if (!reader.pos) applyManualBox();
+		} else if (!reader.pos) {
 			var boxes = reader.find(img);
 			if (!reader.pos && !(boxes && boxes.length)) {
-				setStatus("Looking for your chatbox\u2026", "warn"); updateDebug(); return;
+				setStatus("Can\u2019t auto-find chat \u2014 use \u201CSet chatbox\u201D in settings", "warn"); updateDebug(); return;
 			}
 		}
 		var lines = reader.read(img);
 		if (lines === null) {
-			// box located, but not enough text yet to lock the font — keep the box and wait.
-			setStatus("Chatbox found \u2014 waiting for text\u2026", "warn");
-			if (++nullReads > 20) { reader.pos = null; reader.font = null; nullReads = 0; }
+			setStatus(manualBox ? "Box set \u2014 waiting for chat text\u2026" : "Chatbox found \u2014 waiting for text\u2026", "warn");
+			if (!manualBox && ++nullReads > 20) { reader.pos = null; reader.font = null; nullReads = 0; }
 			updateDebug();
 			return;
 		}
 		nullReads = 0;
 		if (lines.length) lastRaw = lines[lines.length - 1].text;
-		setStatus("Watching chat \u2014 good hunting", "ok");
+		setStatus(manualBox ? "Watching chat (manual box)" : "Watching chat \u2014 good hunting", "ok");
 		if (!primed) { primed = true; updateDebug(); return; } // ignore lines already on screen at launch
 		for (var i = 0; i < lines.length; i++) matchLine(lines[i].text);
 	} catch (e) {
-		reader.pos = null;                       // recover on next tick
+		if (!manualBox) reader.pos = null;       // recover on next tick (auto mode only)
 		setStatus("Re-syncing chatbox\u2026", "warn");
 	}
 	updateDebug();
@@ -238,8 +337,8 @@ function updateDebug() {
 	var font = !!(reader && reader.font);
 	function m(v) { return v ? '<b class="good">Y</b>' : '<b class="bad">N</b>'; }
 	el.innerHTML =
-		"alt1:" + m(a) + " view:" + m(pix) + " box:" + m(pos) +
-		" n:<b>" + n + "</b> font:" + m(font) +
+		"mode:<b>" + (manualBox ? "manual" : "auto") + "</b> alt1:" + m(a) + " view:" + m(pix) + " box:" + m(pos) +
+		" font:" + m(font) +
 		"<br>last: " + (lastRaw ? escapeHtml('"' + lastRaw.slice(0, 64) + '"') : "\u2014");
 }
 
@@ -267,6 +366,11 @@ function initUI() {
 	$("clearLog").onclick = function () {
 		$("log").innerHTML = '<li class="empty">No specials detected yet.</li>';
 	};
+
+	// manual chatbox targeting
+	var mb = $("manualBtn"); if (mb) mb.onclick = startTargeting;
+	var cb = $("clearManualBtn"); if (cb) cb.onclick = clearManualBox;
+	updateManualUI();
 
 	// checkboxes / numbers
 	bindCheck("setOverlay", "overlay");
@@ -366,6 +470,8 @@ function ensureAlt1() {
 function boot() {
 	initUI();
 	ensureAlt1();
+	if (window.alt1 && a1lib.on) a1lib.on("alt1pressed", onAlt1Pressed);
+	if (manualBox) applyManualBox();
 	setInterval(readTick, 250);
 	readTick();
 }
