@@ -48,6 +48,7 @@ var lastErr = "";                  // last exception message (for diagnostics)
 var lastFire = {};                 // trigger id -> timestamp (cooldown)
 /* manual chatbox targeting (used when auto-detect can't find the chat) */
 var manualBox = loadJSON("telos_manual_box_v1", null); // {x,y,width,height,line0y} or null
+var needsRecal = !!manualBox;      // recalibrate a stored box once on startup (self-heal)
 var targeting = 0;                 // 0 = off, 1 = awaiting 1st corner, 2 = awaiting 2nd corner
 var targetCorner1 = null;
 var $ = function (id) { return document.getElementById(id); };
@@ -178,16 +179,20 @@ function hexToRgb(hex) {
    the box we hand it, so this works regardless of the surrounding graphics.
    ===================================================================== */
 function makeChatbox(b) {
-	// clamp to the captured RS area so read()'s toData can't go out of bounds
+	// Capture a little BELOW the box too, so the text reader has room for
+	// descenders/badges under the bottom line and can't run off the edge (RangeError).
 	var W = (window.alt1 && alt1.rsWidth) || 100000, H = (window.alt1 && alt1.rsHeight) || 100000;
+	var PAD = 22;
 	var x = Math.max(0, b.x), y = Math.max(0, b.y);
-	var w = Math.min(b.width, W - x), h = Math.min(b.height, H - y);
+	var w = Math.min(b.width, W - x);
+	var h = Math.min(b.height + PAD, H - y);
+	var line0y = Math.max(2, Math.min(b.line0y, h - PAD));
 	return {
 		rect: { x: x, y: y, width: w, height: h },
 		timestamp: true, type: "main", leftfound: true,
 		topright: { x: x + w, y: y, type: "full" },
 		botleft: { x: x, y: y + h },
-		line0x: 0, line0y: Math.min(b.line0y, h - 1)
+		line0x: 0, line0y: line0y
 	};
 }
 function applyManualBox() {
@@ -199,8 +204,8 @@ function applyManualBox() {
 /* Sweep the baseline (line0y) to find the offset that reads the most text —
    makes the feature forgiving of imprecise pointing. */
 function calibrate(img, rect) {
-	var best = { score: -1, line0y: rect.height - 4 };
-	var lo = Math.max(rect.height - 40, 8);
+	var best = { score: -1, line0y: rect.height - 6 };
+	var lo = Math.max(8, rect.height - 70);   // search up to ~5 lines above the bottom
 	for (var oy = rect.height - 1; oy >= lo; oy--) {
 		var box = makeChatbox({ x: rect.x, y: rect.y, width: rect.width, height: rect.height, line0y: oy });
 		reader.pos = { mainbox: box, boxes: [box] };
@@ -208,7 +213,7 @@ function calibrate(img, rect) {
 		var score = 0, lines = null;
 		try { lines = reader.read(img); } catch (e) {}
 		if (lines) for (var i = 0; i < lines.length; i++) {
-			var m = lines[i].text.match(/[a-z0-9]/gi); if (m) score += m.length;
+			var mm = lines[i].text.match(/[a-z0-9]/gi); if (mm) score += mm.length;
 		}
 		if (score > best.score) best = { score: score, line0y: oy };
 	}
@@ -253,6 +258,7 @@ function onAlt1Pressed() {
 		var best = calibrate(img, rect);
 		manualBox = { x: x, y: y, width: w, height: h, line0y: best.line0y };
 		saveJSON("telos_manual_box_v1", manualBox);
+		needsRecal = false;
 		reader.font = null; reader.overlaplines = []; reader.lastReadBuffer = null;
 		primed = false; applyManualBox();
 		manualInfo(best.score > 8
@@ -299,6 +305,15 @@ function readTick() {
 	try {
 		if (manualBox) {
 			// MANUAL mode: use the box the user pointed at (auto-detect not needed)
+			if (needsRecal) {
+				try {
+					var b = calibrate(img, { x: manualBox.x, y: manualBox.y, width: manualBox.width, height: manualBox.height });
+					manualBox.line0y = b.line0y; saveJSON("telos_manual_box_v1", manualBox);
+				} catch (e) { lastErr = "recal: " + ((e && e.message) || e); }
+				needsRecal = false;
+				reader.font = null; reader.overlaplines = []; reader.lastReadBuffer = null; primed = false;
+				applyManualBox();
+			}
 			if (!reader.pos) applyManualBox();
 		} else if (!reader.pos) {
 			var boxes = reader.find(img);
