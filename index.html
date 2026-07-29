@@ -102,6 +102,21 @@
 		</label>
 
 		<div class="trig-head">
+			<span>Chatbox detection</span>
+			<span id="manualState" class="muted-tag">Auto-detect</span>
+		</div>
+		<p class="hint">
+			If the diagnostics show <code>box:N</code> (auto-detect can&rsquo;t find your chat),
+			point at it manually: click below, then hover the <b>top-left</b> of your chat text
+			and press <b>Alt+1</b>, then the <b>bottom-right</b> and press <b>Alt+1</b> again.
+		</p>
+		<div class="trig-actions">
+			<button class="btn" id="manualBtn">Set chatbox (Alt+1)</button>
+			<button class="btn ghost" id="clearManualBtn" hidden>Back to auto</button>
+		</div>
+		<div class="hint" id="manualInfo"></div>
+
+		<div class="trig-head">
 			<span>Triggers</span>
 			<button class="link" id="resetTriggers">reset to defaults</button>
 		</div>
