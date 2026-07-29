@@ -44,6 +44,7 @@ var reader = ChatBoxReader ? new ChatBoxReader() : null;
 var primed = false;                // skip lines already in chat when the app starts
 var nullReads = 0, tickCount = 0;  // loop bookkeeping
 var lastRaw = "";                  // last raw chat line read (for diagnostics)
+var lastErr = "";                  // last exception message (for diagnostics)
 var lastFire = {};                 // trigger id -> timestamp (cooldown)
 /* manual chatbox targeting (used when auto-detect can't find the chat) */
 var manualBox = loadJSON("telos_manual_box_v1", null); // {x,y,width,height,line0y} or null
@@ -177,12 +178,16 @@ function hexToRgb(hex) {
    the box we hand it, so this works regardless of the surrounding graphics.
    ===================================================================== */
 function makeChatbox(b) {
+	// clamp to the captured RS area so read()'s toData can't go out of bounds
+	var W = (window.alt1 && alt1.rsWidth) || 100000, H = (window.alt1 && alt1.rsHeight) || 100000;
+	var x = Math.max(0, b.x), y = Math.max(0, b.y);
+	var w = Math.min(b.width, W - x), h = Math.min(b.height, H - y);
 	return {
-		rect: { x: b.x, y: b.y, width: b.width, height: b.height },
+		rect: { x: x, y: y, width: w, height: h },
 		timestamp: true, type: "main", leftfound: true,
-		topright: { x: b.x + b.width, y: b.y, type: "full" },
-		botleft: { x: b.x, y: b.y + b.height },
-		line0x: 0, line0y: b.line0y
+		topright: { x: x + w, y: y, type: "full" },
+		botleft: { x: x, y: y + h },
+		line0x: 0, line0y: Math.min(b.line0y, h - 1)
 	};
 }
 function applyManualBox() {
@@ -314,8 +319,9 @@ function readTick() {
 		if (!primed) { primed = true; updateDebug(); return; } // ignore lines already on screen at launch
 		for (var i = 0; i < lines.length; i++) matchLine(lines[i].text);
 	} catch (e) {
-		if (!manualBox) reader.pos = null;       // recover on next tick (auto mode only)
-		setStatus("Re-syncing chatbox\u2026", "warn");
+		lastErr = (e && e.message) ? e.message : String(e);
+		if (!manualBox) { reader.pos = null; setStatus("Re-syncing chatbox\u2026", "warn"); }
+		else setStatus("Manual box error \u2014 re-point it (see diagnostics)", "warn");
 	}
 	updateDebug();
 }
@@ -336,10 +342,17 @@ function updateDebug() {
 	var n = pos && reader.pos.boxes ? reader.pos.boxes.length : (pos ? 1 : 0);
 	var font = !!(reader && reader.font);
 	function m(v) { return v ? '<b class="good">Y</b>' : '<b class="bad">N</b>'; }
+	var extra = "";
+	if (manualBox) {
+		var W = (a && alt1.rsWidth) || "?", H = (a && alt1.rsHeight) || "?";
+		extra = '<br>box: ' + manualBox.x + "," + manualBox.y + " " + manualBox.width + "x" + manualBox.height +
+			" L=" + manualBox.line0y + " | rs: " + W + "x" + H;
+	}
 	el.innerHTML =
 		"mode:<b>" + (manualBox ? "manual" : "auto") + "</b> alt1:" + m(a) + " view:" + m(pix) + " box:" + m(pos) +
-		" font:" + m(font) +
-		"<br>last: " + (lastRaw ? escapeHtml('"' + lastRaw.slice(0, 64) + '"') : "\u2014");
+		" font:" + m(font) + extra +
+		"<br>last: " + (lastRaw ? escapeHtml('"' + lastRaw.slice(0, 56) + '"') : "\u2014") +
+		(lastErr ? '<br><span class="bad">err: ' + escapeHtml(lastErr.slice(0, 70)) + "</span>" : "");
 }
 
 /* =====================================================================
