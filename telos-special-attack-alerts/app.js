@@ -181,8 +181,8 @@ function matchLine(rawText) {
 }
 
 function readTick() {
-	if (!window.alt1) { setStatus("Open this app inside Alt1", "err"); return; }
-	if (!alt1.permissionPixel) { setStatus("Grant \u201CScreen capture\u201D in Alt1", "warn"); return; }
+	if (!ensureAlt1()) { setStatus("Open in the Alt1 browser to add this app", "err"); return; }
+	if (!alt1.permissionPixel) { setStatus("Click Alt1\u2019s \u201Cadd app\u201D bar at the top to finish", "warn"); return; }
 	if (!reader) { setStatus("Chat library failed to load", "err"); return; }
 	try {
 		// periodically drop the box position so we re-locate a chat that was moved/resized
@@ -307,23 +307,28 @@ function trigMsg(text, cls) {
 	clearTimeout(trigMsg._t); trigMsg._t = setTimeout(function () { el.textContent = ""; }, 4000);
 }
 
-/* ---------- install banner when opened outside Alt1 ---------- */
-function initInstallBanner() {
+/* ---------- Alt1 registration (handles late injection of window.alt1) ---------- */
+var CONFIG_URL = new URL("./appconfig.json", location.href).href;
+var identified = false;
+function ensureAlt1() {
 	if (window.alt1) {
-		try { alt1.identifyAppUrl("./appconfig.json"); } catch (e) {}
-		return;
+		$("installbar").hidden = true;                 // hide our fallback bar inside Alt1
+		if (!identified) {
+			try { alt1.identifyAppUrl(CONFIG_URL); identified = true; } catch (e) {}
+		}
+		return true;
 	}
+	// opened in a normal browser: show a real clickable protocol link
 	var bar = $("installbar");
 	bar.hidden = false;
-	var cfg = new URL("./appconfig.json", location.href).href;
-	$("addlink").href = "alt1://addapp/" + cfg;
-	setStatus("Not running in Alt1", "err");
+	$("addlink").href = "alt1://addapp/" + CONFIG_URL;
+	return false;
 }
 
 /* ---------- boot ---------- */
 document.addEventListener("DOMContentLoaded", function () {
 	initUI();
-	initInstallBanner();
+	ensureAlt1();
 	setInterval(readTick, 250);
 	readTick();
 });
