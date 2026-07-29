@@ -10,5 +10,7 @@
 	"minHeight": 200,
 	"maxWidth": 900,
 	"maxHeight": 1000,
-	"permissions": ["overlay", "pixel"]
+	"requestHandlers": [],
+	"activators": [],
+	"permissions": "pixel,overlay"
 }
