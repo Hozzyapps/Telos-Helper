@@ -314,7 +314,7 @@ function ensureAlt1() {
 	if (window.alt1) {
 		$("installbar").hidden = true;                 // hide our fallback bar inside Alt1
 		if (!identified) {
-			try { alt1.identifyAppUrl(CONFIG_URL); identified = true; } catch (e) {}
+			try { alt1.identifyAppUrl("./appconfig.json"); identified = true; } catch (e) {}
 		}
 		return true;
 	}
