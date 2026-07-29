@@ -3,9 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>Telos Special Attack Alerts</title>
 <link rel="icon" href="./appicon.png" />
-<link rel="stylesheet" href="./style.css" />
+<!-- critical styling baked in so the app can never render unstyled/white,
+     even if the external stylesheet is slow or cached -->
+<style>
+	html, body { margin: 0; background: #0b0d12; color: #e8edf6;
+		font-family: system-ui, "Segoe UI", Roboto, sans-serif; }
+	[hidden] { display: none !important; }
+</style>
+<!-- load the full stylesheet with a per-load timestamp so it is NEVER cached -->
+<script>
+	(function () {
+		var l = document.createElement("link");
+		l.rel = "stylesheet";
+		l.href = "./style.css?t=" + Date.now();
+		document.head.appendChild(l);
+	})();
+</script>
 </head>
 <body>
 	<!-- Alt1 install banner: only shows when opened in a normal browser -->
@@ -23,19 +41,16 @@
 		<button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">&#9881;</button>
 	</header>
 
-	<!-- Big current-alert banner -->
 	<section class="alert-stage" id="stage">
 		<div class="alert-word" id="alertWord">Ready</div>
 		<div class="alert-tip" id="alertTip">Watching the chatbox for Telos&rsquo; specials.</div>
 	</section>
 
-	<!-- Test + mute row -->
 	<div class="controls">
 		<button class="btn" id="testBtn">Test alert</button>
 		<button class="btn ghost" id="muteBtn" data-on="1">Voice on</button>
 	</div>
 
-	<!-- Recent detections -->
 	<section class="logwrap">
 		<div class="log-head">
 			<span>Recent</span>
@@ -44,7 +59,8 @@
 		<ul class="log" id="log"></ul>
 	</section>
 
-	<!-- Settings panel -->
+	<div class="debug" id="debug">diagnostics&hellip;</div>
+
 	<section class="panel" id="settings" hidden>
 		<div class="panel-head">
 			<h2>Settings</h2>
@@ -62,6 +78,10 @@
 		<label class="row">
 			<span>Beep</span>
 			<input type="checkbox" id="setBeep" checked />
+		</label>
+		<label class="row">
+			<span>Show diagnostics line</span>
+			<input type="checkbox" id="setDebug" checked />
 		</label>
 
 		<label class="row col">
@@ -103,9 +123,17 @@
 		</p>
 	</section>
 
-	<script src="./lib/a1lib.bundle.js"></script>
-	<script src="./lib/ocr.bundle.js"></script>
-	<script src="./lib/chatbox.bundle.js"></script>
-	<script src="./app.js"></script>
+	<!-- engine libraries (stable; versioned) -->
+	<script src="./lib/a1lib.bundle.js?v=6"></script>
+	<script src="./lib/ocr.bundle.js?v=6"></script>
+	<script src="./lib/chatbox.bundle.js?v=6"></script>
+	<!-- load app logic with a per-load timestamp so it is NEVER cached -->
+	<script>
+		(function () {
+			var s = document.createElement("script");
+			s.src = "./app.js?t=" + Date.now();
+			document.body.appendChild(s);
+		})();
+	</script>
 </body>
 </html>
