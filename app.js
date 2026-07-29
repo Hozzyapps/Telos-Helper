@@ -362,9 +362,12 @@ function ensureAlt1() {
 }
 
 /* ---------- boot ---------- */
-document.addEventListener("DOMContentLoaded", function () {
+/* ---------- boot ---------- */
+function boot() {
 	initUI();
 	ensureAlt1();
 	setInterval(readTick, 250);
 	readTick();
-});
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
