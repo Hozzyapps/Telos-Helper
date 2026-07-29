@@ -1,0 +1,14 @@
+{
+	"appName": "Telos Special Attack Alerts",
+	"description": "Reads the RS3 chatbox at Telos and fires an on-screen overlay and a spoken/beep alert the moment a special attack is announced (charge, anima bomb, tendrils, absorb-to-font). Triggers are fully editable.",
+	"appUrl": "./index.html",
+	"configUrl": "./appconfig.json",
+	"iconUrl": "./appicon.png",
+	"defaultWidth": 340,
+	"defaultHeight": 470,
+	"minWidth": 240,
+	"minHeight": 200,
+	"maxWidth": 900,
+	"maxHeight": 1000,
+	"permissions": ["overlay", "pixel"]
+}

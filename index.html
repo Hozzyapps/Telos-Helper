@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Telos Special Attack Alerts</title>
+<link rel="icon" href="./appicon.png" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+	<!-- Alt1 install banner: only shows when opened in a normal browser -->
+	<div id="installbar" hidden>
+		<span>Open this in the <b>Alt1 Toolkit</b> browser, then</span>
+		<a id="addlink" href="#">click to add the app &rarr;</a>
+	</div>
+
+	<header class="topbar">
+		<div class="core" id="core" aria-hidden="true"><span class="ring"></span></div>
+		<div class="titleblock">
+			<h1>Telos Alerts</h1>
+			<div class="status" id="status">Starting&hellip;</div>
+		</div>
+		<button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">&#9881;</button>
+	</header>
+
+	<!-- Big current-alert banner -->
+	<section class="alert-stage" id="stage">
+		<div class="alert-word" id="alertWord">Ready</div>
+		<div class="alert-tip" id="alertTip">Watching the chatbox for Telos&rsquo; specials.</div>
+	</section>
+
+	<!-- Test + mute row -->
+	<div class="controls">
+		<button class="btn" id="testBtn">Test alert</button>
+		<button class="btn ghost" id="muteBtn" data-on="1">Voice on</button>
+	</div>
+
+	<!-- Recent detections -->
+	<section class="logwrap">
+		<div class="log-head">
+			<span>Recent</span>
+			<button class="link" id="clearLog">clear</button>
+		</div>
+		<ul class="log" id="log"></ul>
+	</section>
+
+	<!-- Settings panel -->
+	<section class="panel" id="settings" hidden>
+		<div class="panel-head">
+			<h2>Settings</h2>
+			<button class="icon-btn" id="closeSettings" aria-label="Close">&times;</button>
+		</div>
+
+		<label class="row">
+			<span>On-screen overlay</span>
+			<input type="checkbox" id="setOverlay" checked />
+		</label>
+		<label class="row">
+			<span>Spoken voice</span>
+			<input type="checkbox" id="setVoice" checked />
+		</label>
+		<label class="row">
+			<span>Beep</span>
+			<input type="checkbox" id="setBeep" checked />
+		</label>
+
+		<label class="row col">
+			<span>Voice</span>
+			<select id="setVoicePick"></select>
+		</label>
+		<label class="row">
+			<span>Volume</span>
+			<input type="range" id="setVolume" min="0" max="1" step="0.05" value="1" />
+		</label>
+		<label class="row">
+			<span>Overlay seconds</span>
+			<input type="number" id="setOverlaySecs" min="1" max="10" step="0.5" value="2.5" />
+		</label>
+		<label class="row">
+			<span>Repeat cooldown (ms)</span>
+			<input type="number" id="setCooldown" min="200" max="8000" step="100" value="1500" />
+		</label>
+
+		<div class="trig-head">
+			<span>Triggers</span>
+			<button class="link" id="resetTriggers">reset to defaults</button>
+		</div>
+		<p class="hint">
+			Each line the chatbox reads is matched against these. Edit freely &mdash; add any
+			message you see in your own chat. <code>say</code> is spoken aloud; <code>match</code>
+			is a list of phrases (any one hits). This is JSON; changes save on <b>Apply</b>.
+		</p>
+		<textarea id="trigEditor" spellcheck="false" rows="12"></textarea>
+		<div class="trig-actions">
+			<button class="btn" id="applyTriggers">Apply</button>
+			<span class="trig-msg" id="trigMsg"></span>
+		</div>
+
+		<p class="hint foot">
+			Tip: in-game, turn on <b>Local timestamps in chat box</b>
+			(Settings &rarr; Gameplay &rarr; Chat &amp; Social) and set interface transparency to 0%
+			&mdash; both make chat reading far more reliable.
+		</p>
+	</section>
+
+	<script src="./lib/a1lib.bundle.js"></script>
+	<script src="./lib/ocr.bundle.js"></script>
+	<script src="./lib/chatbox.bundle.js"></script>
+	<script src="./app.js"></script>
+</body>
+</html>
