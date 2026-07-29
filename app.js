@@ -185,15 +185,25 @@ function readTick() {
 	if (!ensureAlt1()) { setStatus("Open in the Alt1 browser to add this app", "err"); updateDebug(); return; }
 	if (!alt1.permissionPixel) { setStatus("Enable \u201CView screen\u201D permission for this app", "warn"); updateDebug(); return; }
 	if (!reader) { setStatus("Chat library failed to load", "err"); updateDebug(); return; }
+	if (alt1.rsLinked === false) { setStatus("Waiting for RuneScape\u2026", "warn"); updateDebug(); return; }
+
+	// Capture the game screen ONCE and hand the same image to find() and read().
+	// (Letting the library auto-capture internally fails to locate the box on some setups.)
+	var img;
+	try { img = a1lib.captureHoldFullRs(); }
+	catch (e) { setStatus("Couldn\u2019t capture the game screen", "warn"); updateDebug(); return; }
+	if (!img) { setStatus("Couldn\u2019t capture the game screen", "warn"); updateDebug(); return; }
+
 	try {
 		if (!reader.pos) {
-			reader.find();
-			if (!reader.pos) { setStatus("Looking for your chatbox\u2026", "warn"); updateDebug(); return; }
+			var boxes = reader.find(img);
+			if (!reader.pos && !(boxes && boxes.length)) {
+				setStatus("Looking for your chatbox\u2026", "warn"); updateDebug(); return;
+			}
 		}
-		var lines = reader.read();
+		var lines = reader.read(img);
 		if (lines === null) {
 			// box located, but not enough text yet to lock the font — keep the box and wait.
-			// only after a long dry spell do we re-find, in case we locked onto the wrong box.
 			setStatus("Chatbox found \u2014 waiting for text\u2026", "warn");
 			if (++nullReads > 20) { reader.pos = null; reader.font = null; nullReads = 0; }
 			updateDebug();
